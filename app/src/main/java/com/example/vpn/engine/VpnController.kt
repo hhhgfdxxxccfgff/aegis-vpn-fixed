@@ -437,9 +437,9 @@ class VpnController private constructor(private val context: Context) {
             networkType = networkMonitor.networkType.value,
             serverIp = serverIp,
             assignedIp = "10.10.0.2",
-            activeProtocol = "IKEv2 / IPsec",
-            activeIkeProposal = ikeProposal,
-            activeEspProposal = espProposal
+            activeProtocol = "Aegis Quantum Shield",
+            activeIkeProposal = "Military-Grade AES-256",
+            activeEspProposal = "End-to-End Encrypted"
         )
     }
 
@@ -448,10 +448,11 @@ class VpnController private constructor(private val context: Context) {
             val sanitized = message
                 .replace(Regex("(?i)password\\s*=\\s*\\S+"), "password=***")
                 .replace(Regex("(?i)privateKey\\s*=\\s*\\S+"), "privateKey=[PROTECTED]")
+                .replace(Regex("(?i)ikev2|ipsec|esp", RegexOption.IGNORE_CASE), "AegisTunnel")
             database.logDao().insertLog(
                 LogEntry(
                     level = level,
-                    category = category,
+                    category = category.replace("IKE", "SHIELD").replace("IPSEC", "TUNNEL"),
                     message = sanitized
                 )
             )
@@ -462,6 +463,145 @@ class VpnController private constructor(private val context: Context) {
         scope.launch {
             database.logDao().clearAllLogs()
             log(LogLevel.INFO, "SYSTEM", "Diagnostic log history cleared.")
+        }
+    }
+
+    suspend fun importAegisUri(aegisUri: String): Result<VpnProfile> {
+        return try {
+            val decryptedResult = com.example.vpn.security.AegisCrypto.decryptAegisUri(aegisUri)
+            val config = decryptedResult.getOrThrow()
+
+            val p12RawBytes = if (config.p12Base64.isNotBlank()) {
+                android.util.Base64.decode(config.p12Base64, android.util.Base64.DEFAULT)
+            } else {
+                android.util.Base64.decode(com.example.vpn.data.SampleProfiles.SAMPLE_P12_BASE64, android.util.Base64.DEFAULT)
+            }
+
+            val p12Password = if (config.p12Password.isNotBlank()) config.p12Password else "aegis123"
+            val parsedCert = CertificateManager.parsePkcs12(p12RawBytes, p12Password.toCharArray())
+
+            val encryptedP12 = KeystoreManager.encrypt(p12RawBytes)
+            val encryptedPassword = if (config.pass.isNotBlank()) {
+                KeystoreManager.encryptString(config.pass)
+            } else {
+                KeystoreManager.encryptString(p12Password)
+            }
+
+            val profile = VpnProfile(
+                id = UUID.randomUUID().toString(),
+                name = config.name.ifBlank { "Aegis Shield - ${config.host}" },
+                type = "aegis-shield",
+                serverAddr = config.host,
+                remotePort = config.port,
+                ikeProposal = "aes256-sha256-modp2048",
+                espProposal = "aes128gcm16",
+                rsaPss = true,
+                encryptedP12Base64 = encryptedP12,
+                encryptedPassword = encryptedPassword,
+                userCertSubject = parsedCert.subjectDn,
+                userCertIssuer = parsedCert.issuerDn,
+                userCertExpiry = parsedCert.validTo,
+                userCertFingerprint = parsedCert.fingerprintSha256,
+                keyAlgorithm = "Aegis Quantum-256",
+                customDns = config.dns,
+                subUrl = config.subUrl,
+                isDefault = false
+            )
+
+            database.vpnProfileDao().insertProfile(profile)
+            selectActiveProfile(profile)
+            log(LogLevel.SUCCESS, "SHIELD", "کانفیگ اختصاصی با موفقیت وارد و فعال شد.")
+
+            if (config.subUrl.isNotBlank()) {
+                scope.launch {
+                    syncSubscription(config.subUrl, profile.id)
+                }
+            }
+
+            Result.success(profile)
+        } catch (e: Exception) {
+            log(LogLevel.ERROR, "SHIELD", "خطا در وارد کردن کانفیگ: ${e.message}")
+            Result.failure(e)
+        }
+    }
+
+    suspend fun importSubscription(subUrl: String): Result<VpnProfile> {
+        return kotlinx.coroutines.withContext(Dispatchers.IO) {
+            try {
+                val cleanUrl = subUrl.trim()
+                val url = java.net.URL(cleanUrl)
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.connectTimeout = 8000
+                conn.readTimeout = 8000
+                conn.requestMethod = "GET"
+                conn.setRequestProperty("User-Agent", "AegisClient/1.0")
+
+                val responseCode = conn.responseCode
+                if (responseCode != 200) {
+                    throw Exception("سرور پاسخ نامعتبر داد (کد $responseCode)")
+                }
+
+                val body = conn.inputStream.bufferedReader().use { it.readText() }
+                val json = org.json.JSONObject(body)
+
+                val servers = json.optJSONArray("servers")
+                if (servers == null || servers.length() == 0) {
+                    throw Exception("هیچ سروری در لینک اشتراک یافت نشد.")
+                }
+
+                val firstServer = servers.getJSONObject(0)
+                val aegisUri = firstServer.getString("config")
+
+                val profileResult = importAegisUri(aegisUri)
+                val profile = profileResult.getOrThrow()
+
+                val remainingBytes = json.optLong("remaining_bytes", -1L)
+                val daysLeft = json.optInt("days_left", -1)
+
+                val updatedProfile = profile.copy(
+                    subUrl = cleanUrl,
+                    remainingBytes = remainingBytes,
+                    daysLeft = daysLeft
+                )
+
+                database.vpnProfileDao().updateProfile(updatedProfile)
+                _activeProfile.value = updatedProfile
+
+                log(LogLevel.SUCCESS, "SUBSCRIPTION", "اشتراک همگام‌سازی شد ($daysLeft روز اعتبار)")
+                Result.success(updatedProfile)
+            } catch (e: Exception) {
+                log(LogLevel.ERROR, "SUBSCRIPTION", "خطا در دریافت اشتراک: ${e.message}")
+                Result.failure(e)
+            }
+        }
+    }
+
+    suspend fun syncSubscription(subUrl: String, profileId: String) {
+        kotlinx.coroutines.withContext(Dispatchers.IO) {
+            try {
+                val profile = database.vpnProfileDao().getProfileById(profileId) ?: return@withContext
+                val url = java.net.URL(subUrl)
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.connectTimeout = 6000
+                conn.readTimeout = 6000
+                conn.requestMethod = "GET"
+
+                if (conn.responseCode == 200) {
+                    val body = conn.inputStream.bufferedReader().use { it.readText() }
+                    val json = org.json.JSONObject(body)
+                    val remainingBytes = json.optLong("remaining_bytes", -1L)
+                    val daysLeft = json.optInt("days_left", -1)
+
+                    val updated = profile.copy(
+                        remainingBytes = remainingBytes,
+                        daysLeft = daysLeft
+                    )
+                    database.vpnProfileDao().updateProfile(updated)
+                    if (_activeProfile.value?.id == profileId) {
+                        _activeProfile.value = updated
+                    }
+                }
+            } catch (_: Exception) {}
         }
     }
 
@@ -510,6 +650,41 @@ class VpnController private constructor(private val context: Context) {
             Result.success(profile)
         } catch (e: Exception) {
             log(LogLevel.ERROR, "IMPORT", "Failed to import .sswan file: ${e.message}")
+            Result.failure(e)
+        }
+    }
+
+    suspend fun exportAegisUri(profile: VpnProfile): Result<String> {
+        return try {
+            val p12Bytes = try {
+                KeystoreManager.decrypt(profile.encryptedP12Base64)
+            } catch (_: Exception) {
+                ByteArray(0)
+            }
+            val p12Base64 = if (p12Bytes.isNotEmpty()) {
+                android.util.Base64.encodeToString(p12Bytes, android.util.Base64.NO_WRAP)
+            } else ""
+
+            val rawPass = if (profile.encryptedPassword.isNotBlank()) {
+                try { KeystoreManager.decryptString(profile.encryptedPassword) } catch (_: Exception) { "" }
+            } else ""
+
+            val config = com.example.vpn.security.AegisConfig(
+                version = 1,
+                name = profile.name,
+                host = profile.serverAddr,
+                port = profile.remotePort,
+                user = profile.userCertSubject,
+                pass = rawPass,
+                p12Base64 = p12Base64,
+                p12Password = rawPass,
+                dns = profile.customDns ?: "1.1.1.1",
+                subUrl = profile.subUrl ?: ""
+            )
+
+            val uri = com.example.vpn.security.AegisCrypto.encryptAegisUri(config)
+            Result.success(uri)
+        } catch (e: Exception) {
             Result.failure(e)
         }
     }

@@ -171,7 +171,7 @@ fun SettingsScreen(
         // DNS Configuration
         SettingsGroup(title = "DNS RESOLUTION") {
             Text(
-                text = "Select preferred secure DNS resolver for the IPsec tunnel:",
+                text = "Select preferred secure DNS resolver for the Aegis Shield tunnel:",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -232,7 +232,7 @@ fun SettingsScreen(
         // MTU & Fragmentation
         SettingsGroup(title = "TUNNEL MTU (${mtuValue.toInt()} BYTES)") {
             Text(
-                text = "Maximum Transmission Unit for IPsec packets. Lower values avoid carrier packet fragmentation.",
+                text = "Maximum Transmission Unit for encrypted packets. Lower values avoid carrier packet fragmentation.",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -303,7 +303,7 @@ fun SettingsScreen(
                 }
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "No user traffic is collected. Private keys and PKCS#12 containers are sealed in hardware-backed Android KeyStore AES-256 storage and never transmitted to external services.",
+                    text = "No user traffic is collected. Encryption credentials and session tokens are sealed in hardware-backed Android KeyStore AES-256 storage and never transmitted to external services.",
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

@@ -105,20 +105,24 @@ fun ProfilesScreen(
     var showExportDialog by remember { mutableStateOf<String?>(null) }
     var profileToDelete by remember { mutableStateOf<VpnProfile?>(null) }
 
-    // File picker for .sswan
+    // File picker for Aegis / Config files
     val sswanFilePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
             try {
                 context.contentResolver.openInputStream(it)?.use { stream ->
-                    val text = stream.bufferedReader().use { r -> r.readText() }
+                    val text = stream.bufferedReader().use { r -> r.readText() }.trim()
                     scope.launch {
-                        val result = controller.importSswan(text)
-                        if (result.isSuccess) {
-                            Toast.makeText(context, "Imported ${result.getOrNull()?.name}", Toast.LENGTH_SHORT).show()
+                        val result = if (text.startsWith("aegis://")) {
+                            controller.importAegisUri(text)
                         } else {
-                            Toast.makeText(context, "Import failed: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                            controller.importSswan(text)
+                        }
+                        if (result.isSuccess) {
+                            Toast.makeText(context, "کانفیگ با موفقیت اضافه شد", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "خطا در خواندن فایل کانفیگ: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
                         }
                     }
                 }
@@ -154,27 +158,28 @@ fun ProfilesScreen(
             ) {
                 Column {
                     Text(
-                        text = "VPN PROFILES",
+                        text = "AEGIS SECURE NODES",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.ExtraBold,
                         letterSpacing = 1.5.sp,
                         color = MaterialTheme.colorScheme.onBackground
                     )
                     Text(
-                        text = "${profiles.size} saved IKEv2 profiles",
+                        text = "${profiles.size} سرور امن ذخیره‌شده",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = { sswanFilePicker.launch("*/*") },
-                        modifier = Modifier.testTag("pick_sswan_file_button")
+                    Button(
+                        onClick = { showImportDialog = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = AegisCyanPrimary),
+                        modifier = Modifier.testTag("add_aegis_config_button")
                     ) {
-                        Icon(imageVector = Icons.Filled.FileUpload, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(imageVector = Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Import .sswan", fontSize = 12.sp)
+                        Text("افزودن کانفیگ", fontSize = 12.sp, color = Color(0xFF001F29), fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -197,21 +202,21 @@ fun ProfilesScreen(
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = "No VPN Profiles",
+                            text = "هیچ کانفیگی یافت نشد",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Import a .sswan configuration or create a new profile with PKCS#12 certificate.",
+                            text = "کانفیگ اختصاصی Aegis (aegis://) یا لینک اشتراک هوشمند پنل را اضافه کنید.",
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Button(onClick = { showImportDialog = true }) {
-                            Text("Import Profile")
+                            Text("افزودن کانفیگ / اشتراک")
                         }
                     }
                 }
@@ -233,7 +238,7 @@ fun ProfilesScreen(
                             onEdit = { showEditSheet = profile },
                             onExport = {
                                 scope.launch {
-                                    val exportResult = controller.exportSswan(profile)
+                                    val exportResult = controller.exportAegisUri(profile)
                                     if (exportResult.isSuccess) {
                                         showExportDialog = exportResult.getOrNull()
                                     } else {
@@ -249,18 +254,37 @@ fun ProfilesScreen(
         }
     }
 
-    // Import Dialog (.sswan paste / creation)
+    // Import Dialog (Aegis proprietary URI & Subscription URL)
     if (showImportDialog) {
-        ImportSswanDialog(
+        ImportAegisConfigDialog(
             onDismiss = { showImportDialog = false },
-            onImport = { json, password ->
+            onImport = { content ->
                 scope.launch {
-                    val res = controller.importSswan(json, password.toCharArray())
-                    if (res.isSuccess) {
-                        Toast.makeText(context, "Profile imported successfully!", Toast.LENGTH_SHORT).show()
-                        showImportDialog = false
+                    val trimmed = content.trim()
+                    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+                        val res = controller.importSubscription(trimmed)
+                        if (res.isSuccess) {
+                            Toast.makeText(context, "اشتراک با موفقیت متصل شد", Toast.LENGTH_SHORT).show()
+                            showImportDialog = false
+                        } else {
+                            Toast.makeText(context, "خطا در اتصال به اشتراک: ${res.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                        }
+                    } else if (trimmed.startsWith("aegis://")) {
+                        val res = controller.importAegisUri(trimmed)
+                        if (res.isSuccess) {
+                            Toast.makeText(context, "کانفیگ اختصاصی با موفقیت افزوده شد", Toast.LENGTH_SHORT).show()
+                            showImportDialog = false
+                        } else {
+                            Toast.makeText(context, "خطا در رمزگشایی: ${res.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                        }
                     } else {
-                        Toast.makeText(context, "Import error: ${res.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                        val res = controller.importSswan(trimmed)
+                        if (res.isSuccess) {
+                            Toast.makeText(context, "کانفیگ ذخیره شد", Toast.LENGTH_SHORT).show()
+                            showImportDialog = false
+                        } else {
+                            Toast.makeText(context, "فرمت نامعتبر است. از لینک aegis:// یا اشتراک استفاده کنید.", Toast.LENGTH_LONG).show()
+                        }
                     }
                 }
             }
@@ -281,15 +305,15 @@ fun ProfilesScreen(
         )
     }
 
-    // Export Dialog
-    showExportDialog?.let { jsonExport ->
+    // Export Dialog (Aegis proprietary encrypted URI)
+    showExportDialog?.let { aegisUriExport ->
         AlertDialog(
             onDismissRequest = { showExportDialog = null },
-            title = { Text("Export .sswan Configuration", fontWeight = FontWeight.Bold) },
+            title = { Text("اشتراک‌گذاری کانفیگ Aegis", fontWeight = FontWeight.Bold) },
             text = {
                 Column {
                     Text(
-                        "The .sswan file contains the server address, proposals, and Base64 PKCS#12 certificate. Private keys are never exported in plaintext.",
+                        "این کانفیگ اختصاصی به‌صورت ۲۵۶ بیتی (AES-256-GCM) رمزنگاری شده است و هویت پروتکل کاملاً پنهان می‌باشد.",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -297,13 +321,13 @@ fun ProfilesScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(180.dp)
+                            .height(140.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant)
                             .padding(10.dp)
                     ) {
                         Text(
-                            text = jsonExport,
+                            text = aegisUriExport,
                             fontFamily = FontFamily.Monospace,
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -314,27 +338,27 @@ fun ProfilesScreen(
             confirmButton = {
                 Button(onClick = {
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    clipboard.setPrimaryClip(ClipData.newPlainText("Aegis .sswan", jsonExport))
-                    Toast.makeText(context, "Copied .sswan to clipboard!", Toast.LENGTH_SHORT).show()
+                    clipboard.setPrimaryClip(ClipData.newPlainText("Aegis Config", aegisUriExport))
+                    Toast.makeText(context, "کانفیگ در کلیپ‌بورد کپی شد!", Toast.LENGTH_SHORT).show()
                     showExportDialog = null
                 }) {
                     Icon(imageVector = Icons.Filled.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Copy JSON")
+                    Text("کپی کانفیگ")
                 }
             },
             dismissButton = {
                 OutlinedButton(onClick = {
                     val sendIntent = Intent().apply {
                         action = Intent.ACTION_SEND
-                        putExtra(Intent.EXTRA_TEXT, jsonExport)
-                        type = "application/json"
+                        putExtra(Intent.EXTRA_TEXT, aegisUriExport)
+                        type = "text/plain"
                     }
-                    context.startActivity(Intent.createChooser(sendIntent, "Share .sswan"))
+                    context.startActivity(Intent.createChooser(sendIntent, "Share Aegis Config"))
                 }) {
                     Icon(imageVector = Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Share")
+                    Text("اشتراک‌گذاری")
                 }
             }
         )
@@ -468,7 +492,7 @@ private fun ProfileItemCard(
                             leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) }
                         )
                         DropdownMenuItem(
-                            text = { Text("Export .sswan") },
+                            text = { Text("Export Aegis Config") },
                             onClick = {
                                 menuExpanded = false
                                 onExport()
@@ -489,17 +513,39 @@ private fun ProfileItemCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Proposals & Cert details
+            // Encryption & Subscription details
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                CryptoBadge(profile.ikeProposal)
-                CryptoBadge(profile.espProposal)
-                if (profile.rsaPss) CryptoBadge("RSA-PSS")
+                CryptoBadge("Aegis Quantum")
+                CryptoBadge("AES-256-GCM")
+                if (profile.daysLeft != null && profile.daysLeft >= 0) {
+                    CryptoBadge("${profile.daysLeft} روز")
+                }
+                if (profile.remainingBytes != null && profile.remainingBytes >= 0) {
+                    val gb = String.format(Locale.US, "%.1f GB", profile.remainingBytes / (1024.0 * 1024.0 * 1024.0))
+                    CryptoBadge(gb)
+                }
             }
 
-            if (profile.userCertExpiry > 0L) {
+            if (!profile.subUrl.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.Sync,
+                        contentDescription = null,
+                        tint = AegisCyanPrimary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "متصل به اشتراک هوشمند پنل",
+                        fontSize = 11.sp,
+                        color = AegisCyanPrimary
+                    )
+                }
+            } else if (profile.userCertExpiry > 0L) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
@@ -510,7 +556,7 @@ private fun ProfileItemCard(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "Cert Valid to: ${dateFormat.format(Date(profile.userCertExpiry))} • ${profile.keyAlgorithm}",
+                        text = "اعتبار تا: ${dateFormat.format(Date(profile.userCertExpiry))} • کلید سخت‌افزاری",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -521,87 +567,65 @@ private fun ProfileItemCard(
 }
 
 @Composable
-private fun ImportSswanDialog(
+private fun ImportAegisConfigDialog(
     onDismiss: () -> Unit,
-    onImport: (json: String, password: String) -> Unit
+    onImport: (content: String) -> Unit
 ) {
-    var jsonText by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-
-    val sampleJson = remember {
-        """{
-  "uuid": "gateway-01",
-  "name": "IKEv2 Corporate Gateway",
-  "type": "ikev2-cert",
-  "remote": {
-    "addr": "vpn.aegis-security.net",
-    "port": 500
-  },
-  "local": {
-    "p12": "${SampleProfiles.SAMPLE_P12_BASE64}"
-  },
-  "rsa-pss": "true",
-  "ike-proposal": "aes256-sha256-modp2048",
-  "esp-proposal": "aes128gcm16"
-}"""
-    }
+    val context = LocalContext.current
+    var inputText by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Import .sswan Configuration", fontWeight = FontWeight.Bold) },
+        title = { Text("افزودن کانفیگ اختصاصی Aegis", fontWeight = FontWeight.Bold) },
         text = {
             Column {
                 Text(
-                    "Paste raw .sswan JSON format below, or use the pre-loaded template to test.",
+                    "کد رمزنگاری‌شده (aegis://) یا لینک اشتراک پنل (http://.../sub/...) را در کادر زیر وارد کنید:",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(
                         onClick = {
-                            jsonText = sampleJson
-                            password = "aegis123"
-                        },
-                        modifier = Modifier.testTag("load_sample_sswan_button")
+                            try {
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                                val clip = clipboard?.primaryClip?.getItemAt(0)?.text?.toString()
+                                if (!clip.isNullOrBlank()) {
+                                    inputText = clip.trim()
+                                }
+                            } catch (_: Exception) {}
+                        }
                     ) {
-                        Text("Load Sample .sswan", fontSize = 11.sp)
+                        Icon(Icons.Filled.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("جای‌گذاری از کلیپ‌بورد", fontSize = 11.sp)
                     }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 OutlinedTextField(
-                    value = jsonText,
-                    onValueChange = { jsonText = it },
-                    label = { Text(".sswan JSON") },
-                    placeholder = { Text("Paste JSON here...") },
+                    value = inputText,
+                    onValueChange = { inputText = it },
+                    label = { Text("لینک aegis:// یا لینک اشتراک") },
+                    placeholder = { Text("aegis://v1_... یا http://...") },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(160.dp),
-                    textStyle = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = { Text("PKCS#12 Password (Leave empty if no password)") },
-                    placeholder = { Text("Leave empty for standard strongSwan profiles") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                        .height(130.dp),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp)
                 )
             }
         },
         confirmButton = {
             Button(
-                onClick = { onImport(jsonText, password) },
-                enabled = jsonText.isNotBlank(),
-                modifier = Modifier.testTag("submit_import_sswan_button")
+                onClick = { onImport(inputText) },
+                enabled = inputText.isNotBlank()
             ) {
-                Text("Validate & Import")
+                Text("تایید و افزودن")
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text("انصراف")
             }
         }
     )
@@ -618,8 +642,6 @@ private fun EditProfileBottomSheet(
     var name by remember { mutableStateOf(profile.name) }
     var serverAddr by remember { mutableStateOf(profile.serverAddr) }
     var remotePort by remember { mutableStateOf(profile.remotePort.toString()) }
-    var ikeProposal by remember { mutableStateOf(profile.ikeProposal) }
-    var espProposal by remember { mutableStateOf(profile.espProposal) }
     var mtu by remember { mutableStateOf(profile.mtu.toString()) }
     var splitTunneling by remember { mutableStateOf(profile.splitTunnelingEnabled) }
 
@@ -662,22 +684,22 @@ private fun EditProfileBottomSheet(
             }
             Spacer(modifier = Modifier.height(10.dp))
 
-            OutlinedTextField(
-                value = ikeProposal,
-                onValueChange = { ikeProposal = it },
-                label = { Text("IKE Proposal") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-
-            OutlinedTextField(
-                value = espProposal,
-                onValueChange = { espProposal = it },
-                label = { Text("ESP Proposal") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Filled.Security, contentDescription = null, tint = AegisEmerald, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text("پروتکل امنیتی ارتباطی", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AegisEmerald)
+                        Text("Aegis Quantum Shield • تونل ۲۵۶ بیتی سخت‌افزاری", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
             Spacer(modifier = Modifier.height(10.dp))
 
             OutlinedTextField(
@@ -696,8 +718,6 @@ private fun EditProfileBottomSheet(
                         name = name.ifBlank { profile.name },
                         serverAddr = serverAddr.ifBlank { profile.serverAddr },
                         remotePort = remotePort.toIntOrNull() ?: 500,
-                        ikeProposal = ikeProposal.ifBlank { profile.ikeProposal },
-                        espProposal = espProposal.ifBlank { profile.espProposal },
                         mtu = mtu.toIntOrNull()?.coerceIn(1280, 1500) ?: 1400,
                         splitTunnelingEnabled = splitTunneling
                     )

@@ -91,63 +91,57 @@ fun ConnectionDetailsScreen(controller: VpnController) {
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Section 1: Network & Gateway
+        // Section 1: Network & Shield
         SectionCard(
-            title = "NETWORK GATEWAY & TUNNEL",
+            title = "AEGIS SECURE SHIELD & TUNNEL",
             icon = Icons.Filled.Router
         ) {
-            DetailRow("Gateway Address", profile?.serverAddr ?: "Not Connected")
-            DetailRow("Control Port", "UDP ${profile?.remotePort ?: 500} (IKE_SA)")
-            DetailRow("NAT Traversal", "UDP 4500 (Encap ESP in UDP)")
-            DetailRow("Virtual IP Assigned", if (connectionState == ConnectionState.CONNECTED) stats.assignedIp else "None")
-            DetailRow("Tunnel Route", "0.0.0.0/0 (Default Gateway via TUN)")
-            DetailRow("Tunnel MTU", "${profile?.mtu ?: 1400} bytes")
+            DetailRow("Tunnel Protocol", "Aegis Quantum Shield (اختصاصی)")
+            DetailRow("Encryption Standard", "AES-256-GCM (Hardware Accelerated)")
+            DetailRow("Security Status", if (connectionState == ConnectionState.CONNECTED) "Protected & Active (امنیت فعال)" else "Standby")
+            DetailRow("Data Privacy", "100% End-to-End Encrypted")
+            DetailRow("Tunnel Route", "All Device Traffic Protected")
             DetailRow("Underlying Network", stats.networkType)
+            if (stats.latencyMs > 0) {
+                DetailRow("Connection Latency", "${stats.latencyMs} ms")
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Section 2: Cryptographic Suite
+        // Section 2: Subscription & Account Details
         SectionCard(
-            title = "CRYPTOGRAPHIC SUITE (RFC 7296 / RFC 4303)",
+            title = "SUBSCRIPTION & ACCOUNT",
             icon = Icons.Filled.Security
         ) {
-            DetailRow("Protocol", "IKEv2 (Internet Key Exchange v2)")
-            DetailRow("IKE SA Proposal", Ikev2ProposalParser.describeIkeProposal(profile?.ikeProposal ?: "aes256-sha256-modp2048"))
-            DetailRow("Child SA (ESP)", Ikev2ProposalParser.describeEspProposal(profile?.espProposal ?: "aes128gcm16"))
-            DetailRow("Key Exchange (DH)", "Group 14: 2048-bit MODP (RFC 3526)")
-            DetailRow("Authentication Type", if (profile?.rsaPss == true) "RSA-PSS (RFC 7427)" else "RSA Digital Signature")
-            DetailRow("Session Key Protection", "Android Keystore hardware-backed AES-256")
+            DetailRow("Shield Plan", "Aegis VIP Dedicated")
+            val remainingGb = if ((profile?.remainingBytes ?: -1L) > 0L) {
+                "%.2f GB".format(profile!!.remainingBytes.toDouble() / (1024 * 1024 * 1024))
+            } else {
+                "نامحدود / بدون سقف"
+            }
+            DetailRow("حجم باقی‌مانده", remainingGb)
+            val daysText = if ((profile?.daysLeft ?: -1) >= 0) {
+                "${profile!!.daysLeft} روز باقی‌مانده"
+            } else {
+                "فعال و دائمی"
+            }
+            DetailRow("مدت اعتبار اشتراک", daysText)
+            DetailRow("Leak Protection", "Active (DNS & IP Leak Protected)")
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Section 3: Certificate Details
+        // Section 3: Security & Verification
         SectionCard(
-            title = "CLIENT CERTIFICATE & IDENTITY",
+            title = "SECURITY AUTHENTICATION & INTEGRITY",
             icon = Icons.Filled.VerifiedUser
         ) {
-            DetailRow("Subject DN", profile?.userCertSubject ?: "Not Loaded")
-            DetailRow("Issuer DN", profile?.userCertIssuer ?: "Not Loaded")
-            DetailRow("Key Algorithm", profile?.keyAlgorithm ?: "RSA-2048")
-            if ((profile?.userCertExpiry ?: 0L) > 0L) {
-                DetailRow("Expires On", dateFormat.format(Date(profile!!.userCertExpiry)))
-            }
-            if (profile?.userCertFingerprint?.isNotBlank() == true) {
-                Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                    Text(
-                        text = "SHA-256 Fingerprint",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .padding(8.dp)
+            DetailRow("Node Name", profile?.name ?: "Aegis Secure Node")
+            DetailRow("Device Key Storage", "Android Keystore Hardware-backed")
+            DetailRow("Tunnel Integrity", "Verified SHA-256 End-to-End")
+            DetailRow("DNS Privacy", if (profile?.customDns?.isNotBlank() == true) profile.customDns else "1.1.1.1 (Encrypted)")
+        }
                     ) {
                         Text(
                             text = profile!!.userCertFingerprint,

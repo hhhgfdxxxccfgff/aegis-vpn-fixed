@@ -146,7 +146,7 @@ class AegisVpnService : VpnService() {
             )
             VpnController.getInstance(applicationContext).updateState(ConnectionState.CONNECTED)
 
-            updateForegroundNotification(profile.name, "Connected • IPsec ESP Secured")
+            updateForegroundNotification(profile.name, "Aegis Shield Protected • امنیت فعال")
             startTrafficAndKeepaliveLoop(profile)
 
         } catch (e: Exception) {

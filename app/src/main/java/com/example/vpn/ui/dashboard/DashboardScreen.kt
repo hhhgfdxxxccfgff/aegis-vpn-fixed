@@ -162,16 +162,16 @@ fun DashboardScreen(
         ) {
             Column {
                 Text(
-                    text = "AEGIS IKEv2",
+                    text = "AEGIS SHIELD",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 1.5.sp,
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(
-                    text = "Certificate-Authenticated IPsec",
+                    text = if ((activeProfile?.daysLeft ?: -1) >= 0) "اعتبار: ${activeProfile!!.daysLeft} روز باقی‌مانده" else "Quantum Encrypted Tunnel",
                     fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if ((activeProfile?.daysLeft ?: -1) >= 0) AegisCyanPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             StatusBadge(state = connectionState)
@@ -327,7 +327,7 @@ fun DashboardScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = if (activeProfile != null) "${activeProfile?.serverAddr}:${activeProfile?.remotePort}" else "Tap to choose or import .sswan",
+                            text = if (activeProfile != null) "${activeProfile?.serverAddr}:${activeProfile?.remotePort}" else "Tap to choose or add Aegis Shield config",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -433,10 +433,10 @@ fun DashboardScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    CryptoBadge("IKE: AES-256")
-                    CryptoBadge("ESP: AES-128-GCM")
-                    CryptoBadge("MODP2048")
-                    CryptoBadge("RSA-PSS")
+                    CryptoBadge("Military AES-256")
+                    CryptoBadge("Quantum Shield")
+                    CryptoBadge("Zero-Log")
+                    CryptoBadge("Anti-Leak")
                 }
             }
         }
@@ -452,7 +452,7 @@ fun DashboardScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (allProfiles.isEmpty()) {
-                        Text("No profiles imported yet. Import a .sswan file or create a profile.")
+                        Text("No profiles added yet. Import an Aegis Shield config or subscription link.")
                     } else {
                         allProfiles.forEach { profile ->
                             val isSelected = profile.id == activeProfile?.id

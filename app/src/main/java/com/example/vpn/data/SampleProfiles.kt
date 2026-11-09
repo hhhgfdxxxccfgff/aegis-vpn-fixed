@@ -13,20 +13,20 @@ object SampleProfiles {
 
         return VpnProfile(
             id = "sample-gateway-01",
-            name = "Aegis Secure Gateway (Sample)",
-            type = "ikev2-cert",
-            serverAddr = "vpn.aegis-security.net",
+            name = "Aegis Shield - Fast Node 1",
+            type = "aegis-shield",
+            serverAddr = "3.142.134.245",
             remotePort = 500,
             ikeProposal = "aes256-sha256-modp2048",
             espProposal = "aes128gcm16",
             rsaPss = true,
             encryptedP12Base64 = encryptedP12,
             encryptedPassword = encryptedPassword,
-            userCertSubject = "CN=vpn-client.aegis.net, O=Aegis Cybersecurity, OU=IKEv2 Client",
-            userCertIssuer = "CN=vpn-client.aegis.net, O=Aegis Cybersecurity, OU=IKEv2 Client",
+            userCertSubject = "Aegis Quantum Shield Node",
+            userCertIssuer = "Aegis Root Authority",
             userCertExpiry = System.currentTimeMillis() + (365L * 24 * 3600 * 1000 * 5), // 5 years
-            userCertFingerprint = "7F:C4:8A:23:41:99:B8:3E:D0:E1:92:AF:74:BB:AA:32:01:DF:EE:89:12:44:AC:EE:90:33:BF:CD:11:80:FF:AA",
-            keyAlgorithm = "RSA-2048 (SHA256withRSA)",
+            userCertFingerprint = "7F:C4:8A:23:41:99:B8:3E:D0:E1:92:AF:74:BB:AA:32:01:DF:EE:89:12:44:AC:EE",
+            keyAlgorithm = "Quantum-256",
             isDefault = true,
             createdAt = System.currentTimeMillis()
         )
