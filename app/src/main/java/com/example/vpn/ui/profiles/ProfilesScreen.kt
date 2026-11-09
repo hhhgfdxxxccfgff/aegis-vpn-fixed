@@ -533,7 +533,7 @@ private fun ProfileItemCard(
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Filled.Sync,
+                        imageVector = Icons.Filled.Check,
                         contentDescription = null,
                         tint = AegisCyanPrimary,
                         modifier = Modifier.size(14.dp)
@@ -692,7 +692,7 @@ private fun EditProfileBottomSheet(
                     modifier = Modifier.padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Filled.Security, contentDescription = null, tint = AegisEmerald, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Filled.VerifiedUser, contentDescription = null, tint = AegisEmerald, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Column {
                         Text("پروتکل امنیتی ارتباطی", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AegisEmerald)

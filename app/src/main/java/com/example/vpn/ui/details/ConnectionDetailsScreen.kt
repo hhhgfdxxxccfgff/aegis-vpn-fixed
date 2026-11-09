@@ -142,17 +142,6 @@ fun ConnectionDetailsScreen(controller: VpnController) {
             DetailRow("Tunnel Integrity", "Verified SHA-256 End-to-End")
             DetailRow("DNS Privacy", if (profile?.customDns?.isNotBlank() == true) profile.customDns else "1.1.1.1 (Encrypted)")
         }
-                    ) {
-                        Text(
-                            text = profile!!.userCertFingerprint,
-                            fontSize = 10.sp,
-                            fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-            }
-        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
