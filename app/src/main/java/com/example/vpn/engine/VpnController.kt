@@ -481,11 +481,7 @@ class VpnController private constructor(private val context: Context) {
             val parsedCert = CertificateManager.parsePkcs12(p12RawBytes, p12Password.toCharArray())
 
             val encryptedP12 = KeystoreManager.encrypt(p12RawBytes)
-            val encryptedPassword = if (config.pass.isNotBlank()) {
-                KeystoreManager.encryptString(config.pass)
-            } else {
-                KeystoreManager.encryptString(p12Password)
-            }
+            val encryptedPassword = KeystoreManager.encryptString(p12Password)
 
             val profile = VpnProfile(
                 id = UUID.randomUUID().toString(),

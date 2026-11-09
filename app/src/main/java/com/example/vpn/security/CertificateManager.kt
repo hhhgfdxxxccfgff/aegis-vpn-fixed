@@ -27,9 +27,31 @@ object CertificateManager {
 
     /**
      * Attempts to unlock and parse a PKCS#12 (.p12/.pfx) byte stream.
-     * Throws an exception if the password is incorrect or file is corrupt.
+     * Tries the supplied password, with automatic fallback to default password 'aegis123'
+     * or empty password for maximum compatibility across various profile formats.
      */
     fun parsePkcs12(p12Bytes: ByteArray, password: CharArray): ParsedCertificate {
+        val candidates = mutableListOf<CharArray>()
+        candidates.add(password)
+        if (!password.contentEquals("aegis123".toCharArray())) {
+            candidates.add("aegis123".toCharArray())
+        }
+        if (password.isNotEmpty()) {
+            candidates.add(CharArray(0))
+        }
+
+        var lastError: Exception? = null
+        for (candidate in candidates) {
+            try {
+                return parsePkcs12Internal(p12Bytes, candidate)
+            } catch (e: Exception) {
+                lastError = e
+            }
+        }
+        throw lastError ?: CertificateException("PKCS#12 does not contain a valid private key and X.509 certificate entry.")
+    }
+
+    private fun parsePkcs12Internal(p12Bytes: ByteArray, password: CharArray): ParsedCertificate {
         val keyStore = KeyStore.getInstance("PKCS12")
         ByteArrayInputStream(p12Bytes).use { stream ->
             keyStore.load(stream, password)
