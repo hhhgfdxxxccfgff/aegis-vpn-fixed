@@ -58,6 +58,7 @@ fun ConnectionDetailsScreen(controller: VpnController) {
     val connectionState by controller.connectionState.collectAsState()
     val stats by controller.connectionStats.collectAsState()
     val profile by controller.activeProfile.collectAsState()
+    val currentProfile = profile
     val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm:ss z", Locale.getDefault()) }
 
     Column(
@@ -115,14 +116,14 @@ fun ConnectionDetailsScreen(controller: VpnController) {
             icon = Icons.Filled.Security
         ) {
             DetailRow("Shield Plan", "Aegis VIP Dedicated")
-            val remainingGb = if ((profile?.remainingBytes ?: -1L) > 0L) {
-                "%.2f GB".format(profile!!.remainingBytes.toDouble() / (1024 * 1024 * 1024))
+            val remainingGb = if ((currentProfile?.remainingBytes ?: -1L) > 0L) {
+                "%.2f GB".format(currentProfile!!.remainingBytes.toDouble() / (1024 * 1024 * 1024))
             } else {
                 "نامحدود / بدون سقف"
             }
             DetailRow("حجم باقی‌مانده", remainingGb)
-            val daysText = if ((profile?.daysLeft ?: -1) >= 0) {
-                "${profile!!.daysLeft} روز باقی‌مانده"
+            val daysText = if ((currentProfile?.daysLeft ?: -1) >= 0) {
+                "${currentProfile!!.daysLeft} روز باقی‌مانده"
             } else {
                 "فعال و دائمی"
             }
@@ -137,10 +138,10 @@ fun ConnectionDetailsScreen(controller: VpnController) {
             title = "SECURITY AUTHENTICATION & INTEGRITY",
             icon = Icons.Filled.VerifiedUser
         ) {
-            DetailRow("Node Name", profile?.name ?: "Aegis Secure Node")
+            DetailRow("Node Name", currentProfile?.name ?: "Aegis Secure Node")
             DetailRow("Device Key Storage", "Android Keystore Hardware-backed")
             DetailRow("Tunnel Integrity", "Verified SHA-256 End-to-End")
-            DetailRow("DNS Privacy", if (profile?.customDns?.isNotBlank() == true) profile.customDns else "1.1.1.1 (Encrypted)")
+            DetailRow("DNS Privacy", if (currentProfile?.customDns?.isNotBlank() == true) currentProfile.customDns else "1.1.1.1 (Encrypted)")
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -150,7 +151,7 @@ fun ConnectionDetailsScreen(controller: VpnController) {
             title = "DNS & TRAFFIC DIAGNOSTICS",
             icon = Icons.Filled.Dns
         ) {
-            DetailRow("Active DNS Server", if (profile?.customDns?.isNotBlank() == true) profile!!.customDns else "1.1.1.1 (Cloudflare / Fallback 8.8.8.8)")
+            DetailRow("Active DNS Server", if (currentProfile?.customDns?.isNotBlank() == true) currentProfile.customDns else "1.1.1.1 (Cloudflare / Fallback 8.8.8.8)")
             DetailRow("Latency", if (stats.latencyMs > 0) "${stats.latencyMs} ms" else "Not Measured")
             DetailRow("Active Session", if (connectionState == ConnectionState.CONNECTED) "${stats.durationSeconds}s" else "Inactive")
             DetailRow("Bytes Transferred", "↓ ${stats.bytesIn / 1024} KB  /  ↑ ${stats.bytesOut / 1024} KB")
